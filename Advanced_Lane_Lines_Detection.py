@@ -417,6 +417,11 @@ clip1 = VideoFileClip("project_video.mp4")
 white_clip = clip1.fl_image(process_image) #NOTE: this function expects color images!!
 white_clip.write_videofile(file_output, audio=False)
 
+#%%
+file_output = './output_images/project_output.gif'
+clip1 = VideoFileClip("project_video.mp4")
+white_clip = clip1.fl_image(process_image) #NOTE: this function expects color images!!
+white_clip.write_gif(file_output,fps=5,opt='nq')
 
 
 
