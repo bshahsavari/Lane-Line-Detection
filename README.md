@@ -2,7 +2,8 @@
 ###A software pipeline to identify the lane boundaries in a video from a front-facing camera on a car.
 
 ---
-
+![Perspective](./output_images/project_output.gif) 
+---
 **The pipeline includes the following features:**
 
 * Compute the camera calibration matrix and distortion coefficients given a set of chessboard images.
