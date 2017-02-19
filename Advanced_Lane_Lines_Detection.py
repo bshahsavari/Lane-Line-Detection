@@ -1,16 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
-
 import numpy as np
 import cv2
 import glob
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-# %matplotlib qt
+from moviepy.editor import VideoFileClip
 
-#%% Camera Calibration
-
+#%% 
+###Camera Calibration
+    #The camera is calibrated using a set of "object points" and "image points" that 
+    #are extracted from calibration images in "./camera_cal/" directory. The image points 
+    #are extracted from the calibration images by an OpenCV function called `findChessboardCorners()' 
+    #and visualized with `drawChessboardCorners()` again available in OpenCV. 
+    #The object points are basically set to be a uniform grid of 9x6 based on the fact 
+    #that the chessboard had the same number of grid points.
+    #
+    #Once the image points and corresponding object points are found, the  camera 
+    #calibration parameters and distortion matrix are determined by `ret, mtx, dist, 
+    #rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)` 
+    #where `objpoints` and `imgpoints` are the arrays containing the object points and 
+    #image points respectively.
+    #
+    #The images can then be *undistorted*  by using the distortion matrix and OpenCV 
+    #function `dst = cv2.undistort(img, mtx, dist, None, mtx)`. Examples of calibration 
+    #and undistorted images are shown below.
+                                                                                                             
 nx = 9
 ny = 6
 # prepare object points
@@ -52,10 +67,16 @@ for fname in images:
     dst = cv2.undistort(img, mtx, dist, None, mtx)
     plt.imshow(dst)
     plt.title('Undistorted Image')
+    # Uncomment to save the images in ./output_images/
+    #plt.savefig('./output_images/'+fname.split('/')[-1])
     plt.show()
 
 
-#%% Pipeline (test images)
+# The same transformation is applied on the video to undistot the frames. 
+#    The following figures show two examples of original and undistorted images. 
+#    Note that most of the objects are farther than the chessboard the undistortion 
+#    effect is less apparent in this images compared to the calibration ones.
+
 images = glob.glob('./test_images/*.jpg')
 for fname in images:
     #reading in an image
@@ -68,8 +89,10 @@ for fname in images:
     plt.subplot(1,2,2)
     dst = cv2.undistort(img, mtx, dist, None, mtx)
     plt.imshow(dst)
-    plt.show()
     plt.title('Undistorted Image')
+    # Uncomment to save the images in ./output_images/
+    # plt.savefig('./output_images/'+fname.split('/')[-1])
+    plt.show()
 
 
 #%%
@@ -158,6 +181,17 @@ def plot_windows(img, out_img,  leftx, lefty, rightx, righty):
     plt.plot(right_fitx, ploty, color='yellow')
     plt.xlim(0, 1280)
     plt.ylim(720, 0)
+    left_curverad, right_curverad, offset, left_fit_cr, right_fit_cr = calculate_curvature_offset(binary_warped, leftx, lefty, rightx, righty)
+    left_fit_str = 'Left line: %.4f Y^2 + %.3f Y + %.1f' %(left_fit_cr[0], left_fit_cr[1], left_fit_cr[2])
+    right_fit_str = 'Right line: %.4f Y^2 + %.3f Y + %.1f' %(right_fit_cr[0], right_fit_cr[1], right_fit_cr[2])
+    # Now our radius of curvature is in meters
+    ax = plt.gca()
+    strcurve = 'Avg. curvature: %.1f m ' %(0.5*(left_curverad+right_curverad))
+    stroffset = 'Center of car relative to lane center: %.1f m ' %(offset)
+    ax.text(img.shape[1]/3, img.shape[0]/5,strcurve, color='white')
+    ax.text(img.shape[1]/3, img.shape[0]/5+70,stroffset, color='white')
+    ax.text(img.shape[1]/3, img.shape[0]/5+140,left_fit_str, color='white')
+    ax.text(img.shape[1]/3, img.shape[0]/5+210,right_fit_str, color='white')
 
 def plot_lines(img, out_img,  leftx, lefty, rightx, righty):
         # Fit a second order polynomial to each
@@ -194,7 +228,7 @@ def plot_lines(img, out_img,  leftx, lefty, rightx, righty):
     plt.ylim(720, 0)
 
 
-def calculate_curvature(img, leftx, lefty, rightx, righty):
+def calculate_curvature_offset(img, leftx, lefty, rightx, righty):
     ploty = np.linspace(0, img.shape[0]-1, img.shape[0] )
     # Define y-value where we want radius of curvature
     # I'll choose the maximum y-value, corresponding to the bottom of the image
@@ -210,8 +244,26 @@ def calculate_curvature(img, leftx, lefty, rightx, righty):
     # Calculate the new radii of curvature
     left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
     right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
+    
+    y_eval_cr = y_eval*ym_per_pix
+    left_fitx = left_fit_cr[0]*y_eval_cr**2 + left_fit_cr[1]*y_eval_cr + left_fit_cr[2]
+    right_fitx = right_fit_cr[0]*y_eval_cr**2 + right_fit_cr[1]*y_eval_cr + right_fit_cr[2]
+    offset = img.shape[1]/2*xm_per_pix - 0.5*(left_fitx+right_fitx)
+    return left_curverad, right_curverad, offset, left_fit_cr, right_fit_cr
+
+def write_stats(img, out_img,  leftx, lefty, rightx, righty):
+    left_curverad, right_curverad, offset, left_fit_cr, right_fit_cr = calculate_curvature_offset(binary_warped, leftx, lefty, rightx, righty)
+    left_fit_str = 'Left line: %.4f Y^2 + %.3f Y + %.1f' %(left_fit_cr[0], left_fit_cr[1], left_fit_cr[2])
+    right_fit_str = 'Right line: %.4f Y^2 + %.3f Y + %.1f' %(right_fit_cr[0], right_fit_cr[1], right_fit_cr[2])
     # Now our radius of curvature is in meters
-    print(left_curverad, 'm', right_curverad, 'm')
+    strcurve = 'Avg. curvature: %.1f m ' %(0.5*(left_curverad+right_curverad))
+    stroffset = 'Center of car relative to lane center: %.1f m ' %(offset)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(img, stroffset, (int(img.shape[1]/3), int(img.shape[0]/5)), font, 0.8, (0,0,255),2,cv2.LINE_AA)
+    cv2.putText(img, strcurve, (int(img.shape[1]/3), int(img.shape[0]/5)+40), font, .8, (0,0,255),2,cv2.LINE_AA)
+    cv2.putText(img, left_fit_str, (int(img.shape[1]/3), int(img.shape[0]/5)+80), font, .8, (0,0,255),2,cv2.LINE_AA)
+    cv2.putText(img, right_fit_str, (int(img.shape[1]/3), int(img.shape[0]/5)+120), font, .8, (0,0,255),2,cv2.LINE_AA)
+    return img
 
 leftx_base = np.nan
 rightx_base = np.nan
@@ -343,16 +395,35 @@ def combine_thresholds(img):
     combined_binary = np.zeros_like(sxbinary)
     combined_binary[(s_binary == 1) | (sxbinary == 1)] = 1
     return combined_binary, color_binary
-    
 #%%
+def perspective_transformation(img):
+    imshape = img.shape
+    x1 = 200
+    oh = 20
+    h = 450
+    src = np.array([(x1,imshape[0]-oh),(620, h), (730, h), (imshape[1],imshape[0]-oh)], dtype=np.float32)
+    dst = np.array([(x1,imshape[0]-oh),(x1, 0), (imshape[1], 0), (imshape[1],imshape[0]-oh)], dtype=np.float32)
+    M = cv2.getPerspectiveTransform(src, dst)
+    Minv = cv2.getPerspectiveTransform(dst, src)
+    img_size = (img.shape[1], img.shape[0])
+    return M, Minv, img_size, src, dst
+
+
+#% Example of the end-to-end process
+ksize = 3
+
+# 0- Read an image
 img = mpimg.imread('./test_images/test3.jpg')
+
+# 1- Undistort the image using camera calibration matrix
 undist = cv2.undistort(img, mtx, dist, None, mtx)
-# Choose a Sobel kernel size
-ksize = 3 # Choose a larger odd number to smooth gradient measurements
 
-
+# 2- Threshold image
 combined_binary, color_binary = combine_thresholds(undist)
 
+# 3- Perspective transformation
+M, Minv, img_size, src, dst = perspective_transformation(combined_binary)
+binary_warped = cv2.warpPerspective(combined_binary, M, img_size)
 
 # Plotting thresholded images
 plt.subplot(1,2,1)
@@ -360,29 +431,25 @@ plt.imshow(color_binary*255)
 plt.title('Stacked thresholds')
 plt.subplot(1,2,2)
 plt.imshow(combined_binary, cmap='gray')
-plt.title('Combined S channel and gradient thresholds')
-
-#%
-img = combined_binary
-imshape = img.shape
-x1 = 200
-oh = 20
-h = 450
-src = np.array([(x1,imshape[0]-oh),(600, h), (750, h), (imshape[1],imshape[0]-oh)], dtype=np.float32)
-dst = np.array([(x1,imshape[0]-oh),(x1, 0), (imshape[1], 0), (imshape[1],imshape[0]-oh)], dtype=np.float32)
-#p["vertices"] = vertices
+plt.title('Combined S channel and Grad. thresholds')
+# plt.savefig('./output_images/thresholded_2.jpg')
 plt.show()
+
+
+# Plot the source and destination points of perspective transformation
 plt.imshow(img,cmap='gray')
 plt.hold(1)
 plt.plot(src[:,0],src[:,1])
 plt.plot(dst[:,0],dst[:,1],'r')
+#plt.savefig('./output_images/src_dst_2.jpg')
 plt.show()
-M = cv2.getPerspectiveTransform(src, dst)
-Minv = cv2.getPerspectiveTransform(dst, src)
-img_size = (img.shape[1], img.shape[0])
-binary_warped = cv2.warpPerspective(img, M, img_size)
+
+# Plot the bird's eye view image
+img_warped = cv2.warpPerspective(img, M, img_size)
+plt.imshow(img_warped,cmap='gray')
+#plt.savefig('./output_images/warped_2.jpg')
 plt.show()
-plt.imshow(binary_warped,cmap='gray')
+
 
 #%
 # Set the width of the windows +/- margin
@@ -393,12 +460,20 @@ margin = 100
 
 out_img, leftx, lefty, rightx, righty = find_lines(binary_warped)
 plot_windows(binary_warped, out_img, leftx, lefty, rightx, righty)
+#plt.savefig('./output_images/windows_2.jpg')
+plt.show()
 
 plot_lines(binary_warped, out_img, leftx, lefty, rightx, righty)
-
-calculate_curvature(binary_warped, leftx, lefty, rightx, righty)
 plt.show()
+
 result = plot_poly(binary_warped, undist, leftx, lefty, rightx, righty)
+plt.imshow(result)
+#plt.savefig('./output_images/final_2.jpg')
+
+
+
+
+result = write_stats(result, out_img,  leftx, lefty, rightx, righty)
 plt.imshow(result)
 
 #%%
@@ -408,11 +483,10 @@ def process_image(img):
     binary_warped = cv2.warpPerspective(combined_binary, M, img_size)
     out_img, leftx, lefty, rightx, righty = find_lines(binary_warped)
     result = plot_poly(binary_warped, undist, leftx, lefty, rightx, righty)
+    result = write_stats(result, out_img,  leftx, lefty, rightx, righty)
     return result
 
-# Import everything needed to edit/save/watch video clips
-from moviepy.editor import VideoFileClip
-file_output = 'project_output.mp4'
+file_output = './output_images/project_output2.mp4'
 clip1 = VideoFileClip("project_video.mp4")
 white_clip = clip1.fl_image(process_image) #NOTE: this function expects color images!!
 white_clip.write_videofile(file_output, audio=False)
@@ -422,7 +496,6 @@ file_output = './output_images/project_output.gif'
 clip1 = VideoFileClip("project_video.mp4")
 white_clip = clip1.fl_image(process_image) #NOTE: this function expects color images!!
 white_clip.write_gif(file_output,fps=5,opt='nq')
-
 
 
 
